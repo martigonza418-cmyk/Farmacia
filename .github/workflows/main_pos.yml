@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy Node.js app to Azure Web App - POS
+name: Build and deploy PHP app to Azure Web App - pos
 
 on:
   push:
@@ -18,21 +18,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          node-version: '20.x'
+          php-version: '8.3'
 
-      - name: npm install, build, and test
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
+      - name: Check if composer.json exists
+        id: check_files
+        uses: andstor/file-existence-action@v1
+        with:
+          files: 'composer.json'
+
+      - name: Run composer install if composer.json exists
+        if: steps.check_files.outputs.files_exists == 'true'
+        run: composer validate --no-check-publish && composer install --prefer-dist --no-progress
+
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: node-app
+          name: php-app
           path: .
 
   deploy:
@@ -46,20 +51,20 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: node-app
+          name: php-app
       
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_A6524A4D44AD48A790FFEFBD9A929433 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9D118862D3194C8F9BD573FA4E4829BF }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_8A365981C5CF4783BA5E9A63655E5259 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_022FD6FC4D2D4EA4B2DA70CF6A02FC52 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FA6FE9BA81C145BCAF63D9B1F3111EF3 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_17CA76DB075846AFA041ADF6F1A2169C }}
 
       - name: 'Deploy to Azure Web App'
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
+        id: deploy-to-webapp
         with:
-          app-name: 'POS'
+          app-name: 'pos'
           slot-name: 'Production'
           package: .
           
