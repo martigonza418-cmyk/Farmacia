@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Usuarios</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Usuarios - Administración</h1>
+    <div><button id="backBtn">Volver</button></div>
+  </header>
+  <div class="container">
+    <div class="card">
+      <h3>Crear usuario</h3>
+      <form id="createForm">
+        <input name="username" placeholder="Usuario" required>
+        <input name="password" placeholder="Contraseña" required>
+        <select name="rol">
+          <option value="user">User</option>
+          <option value="cashier">Cashier</option>
+          <option value="admin">Admin</option>
+        </select>
+        <div style="margin-top:8px">
+          <button type="submit">Crear</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de usuarios</h3>
+      <div id="usersList"></div>
+    </div>
+  </div>
+
+<script src="js/users.js"></script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ventas - POS</title>
+
+  <style>
+    :root{ --accent:#2b5876; --accent-dark:#1f3f57; --card:#ffffffcc; --muted:#777; }
+    body{font-family: Inter, Arial, sans-serif; margin:0; background:#f4f6f8; color:#222;}
+    header{background:var(--accent); color:#fff; padding:12px 20px; display:flex; align-items:center; gap:12px;}
+    header h1{margin:0; font-size:18px; flex:1;}
+    header .right{display:flex; gap:8px; align-items:center;}
+    a.btn, button.btn{background:#fff;color:var(--accent);border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
+    .container{display:grid; grid-template-columns: 1fr 420px; gap:18px; padding:18px; max-width:1200px; margin:20px auto;}
+    .card{background:var(--card); border-radius:12px; padding:14px; box-shadow:0 6px 18px rgba(19,24,28,0.06);}
+    /* productos */
+    #productosList .product{display:flex; justify-content:space-between; gap:12px; padding:10px 6px; border-bottom:1px solid #eee; align-items:center;}
+    #productosList .product strong{display:block;}
+    .controls{display:flex;gap:8px; align-items:center; margin-bottom:10px;}
+    input[type="search"], input[type="number"], select, textarea { padding:8px; border-radius:8px; border:1px solid #ddd; font-size:14px; }
+    button.addBtn { background:var(--accent); color:#fff; border-radius:8px; padding:8px 10px; border:none; cursor:pointer; }
+    /* carrito */
+    #cartItems { max-height: 420px; overflow:auto; }
+    .cart-item { display:flex; justify-content:space-between; gap:8px; padding:8px 6px; border-bottom:1px dashed #eee; align-items:center; }
+    .muted { color:var(--muted); font-size:13px; }
+    .small { font-size:13px; color:#444; }
+
+    /* responsive */
+    @media(max-width:1000px){ .container{grid-template-columns:1fr; padding:12px;} }
+    /* modal */
+    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:9999; }
+    .modal .box { width:520px; max-width:95%; background:#fff; padding:16px; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ventas / Caja</h1>
+    <div class="right">
+      <button id="abrirCajaBtn" class="btn">Abrir Caja</button>
+      <button id="cerrarCajaBtn" class="btn">Cerrar Caja</button>
+      <button id="backToInv" class="btn">Volver a Inventario</button>
+      <button id="logoutBtn" class="btn">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- productos -->
+    <section class="card" id="productosCard">
+      <div class="controls">
+        <input id="q" type="search" placeholder="Buscar producto por nombre, principio activo..." style="flex:1" />
+        <button id="buscar" class="addBtn">Buscar</button>
+      </div>
+      <div id="productosList" aria-live="polite">
+        <!-- listado dinámico -->
+        <div class="muted">Cargando productos...</div>
+      </div>
+    </section>
+
+    <!-- carrito / cobro -->
+    <aside class="card" id="cartCard">
+      <h3>Carrito</h3>
+      <div id="cartItems">
+        <div class="muted">Carrito vacío</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+        <div><strong>Total:</strong></div>
+        <div><strong id="cartTotal">Q0.00</strong></div>
+      </div>
+
+      <hr style="margin:12px 0">
+
+      <!-- Solo cajeros verán esto (la página en sí ya está restringida), aquí están los campos -->
+      <label style="display:block;margin-bottom:6px"><strong>Tipo cliente</strong></label>
+      <select id="cartCustomerType" style="width:100%; margin-bottom:8px;">
+        <option value="consumidor_final">Consumidor Final</option>
+        <option value="nit">NIT</option>
+        <option value="cui">CUI</option>
+      </select>
+
+      <div id="docRow" style="display:none;margin-bottom:8px;">
+        <label>Documento (NIT / CUI)</label>
+        <input id="cartCustomerDocument" placeholder="NIT o CUI" />
+      </div>
+
+      <label>Motivo / Nota</label>
+      <textarea id="cartNote" rows="2" placeholder="Ej: Consulta externa, Servicio X..." style="width:100%; margin-bottom:8px;"></textarea>
+
+      <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <input type="checkbox" id="ventaSinProducto" /> <span>Venta sin producto (consulta / servicio)</span>
+      </label>
+
+      <div id="cantidadCobroRow" style="display:none; margin-bottom:8px;">
+        <label>Cantidad cobrada (Q)</label>
+        <input id="cantidadCobro" type="number" step="0.01" min="0" placeholder="Monto cobrado" />
+      </div>
+
+      <!-- Condición y método: solo contado / efectivo -->
+      <div style="margin-top:6px">
+        <label>Condición de venta</label>
+        <select id="paymentTerms" style="width:100%; margin-bottom:8px;">
+          <option value="contado">Contado</option>
+        </select>
+
+        <label>Método de pago</label>
+        <select id="paymentMethod" style="width:100%; margin-bottom:8px;">
+          <option value="efectivo">Efectivo</option>
+        </select>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button id="checkoutBtn" class="addBtn" style="flex:1">Cobrar (Efectivo)</button>
+        <button id="clearCart" class="btn" style="flex:0 0 110px">Limpiar</button>
+      </div>
+
+      <hr style="margin:12px 0;">
+      <!-- Detalles de Caja -->
+      <h3>Detalles de Caja</h3>
+      <div id="detallesCaja">
+        <div class="muted">Sin caja abierta actualmente.</div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal éxito -->
+  <div id="successModal" class="modal" role="dialog" aria-modal="true">
+    <div class="box">
+      <h3>¡Cobro exitoso!</h3>
+      <p id="successMsg">Venta registrada.</p>
+      <div style="display:flex;gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="openPDF" class="addBtn">Abrir comprobante PDF</button>
+        <button id="closeModal" class="btn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal apertura -->
+  <div id="abrirCajaModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <h3>Apertura de Caja</h3>
+      <label>Monto Inicial (Q)</label>
+      <input id="montoInicial" type="number" step="0.01" min="0" style="width:100%;margin-bottom:10px;">
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button id="confirmAbrirCaja" class="addBtn">Abrir</button>
+        <button id="cancelAbrirCaja" class="btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal cierre -->
+  <div id="cerrarCajaModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <h3>Cierre de Caja</h3>
+      <div id="resumenCaja"></div>
+      <label>Monto Final (Q)</label>
+      <input id="montoFinal" type="number" step="0.01" min="0" style="width:100%;margin-bottom:10px;">
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button id="confirmCerrarCaja" class="addBtn">Cerrar</button>
+        <button id="cancelCerrarCaja" class="btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------- Estado global ---------- */
+let CART = [];
+let USER_ROLE = '';
+let CAJA_ABIERTA = null; // objeto de caja actual si existe
+
+const money = v => 'Q' + (parseFloat(v||0)).toFixed(2);
+
+/* ---------- Utiles ---------- */
+function escapeHtml(s){ return (s+'').replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function showModal(id){ const m = document.getElementById(id); if(m){ m.style.display='flex'; m.setAttribute('aria-hidden','false'); } }
+function hideModal(id){ const m = document.getElementById(id); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }
+
+/* ---------- Auth y carga inicial ---------- */
+async function authCheck(){
+  try{
+    const r = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/auth_check.php');
+    const d = await r.json();
+    if(!d.ok){ window.location = 'login.html'; return; }
+    USER_ROLE = (d.user.rol || '').toLowerCase();
+    // permitir solo cajero/cashier
+    if(!(USER_ROLE === 'cajero' || USER_ROLE === 'cashier')) {
+      alert('No tienes permiso para acceder a Ventas. Redirigiendo al inventario.');
+      window.location = 'inventario.html';
+      return;
+    }
+    await init();
+  }catch(e){
+    console.error('auth error', e);
+    window.location = 'login.html';
+  }
+}
+
+/* ---------- PRODUCTOS ---------- */
+async function fetchProductos(q=''){
+  const url = q ? 'https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php?q='+encodeURIComponent(q) : 'https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php';
+  const res = await fetch(url);
+  if(!res.ok){
+    if(res.status === 401) window.location = 'login.html';
+    throw new Error('Error al obtener productos');
+  }
+  return await res.json();
+}
+
+async function loadProductos(q=''){
+  const list = document.getElementById('productosList');
+  list.innerHTML = '<div class="muted">Cargando productos...</div>';
+  try{
+    const items = await fetchProductos(q);
+    if(!items || items.length === 0){
+      list.innerHTML = '<div class="muted">No se encontraron productos.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    items.forEach(p=>{
+      const div = document.createElement('div');
+      div.className = 'product';
+      div.innerHTML = `
+        <div>
+          <strong>${escapeHtml(p.nombre_comercial)}</strong>
+          <div class="muted small">${p.presentacion || ''} ${p.principio_activo ? ' - ' + p.principio_activo : ''}</div>
+          <div class="small">${p.stock} en stock · ${money(p.precio_publico)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <button class="addBtn" data-id="${p.id}" data-precio="${p.precio_publico}">Agregar</button>
+        </div>`;
+      list.appendChild(div);
+    });
+  }catch(e){
+    console.error(e);
+    list.innerHTML = '<div class="muted">Error cargando productos</div>';
+  }
+}
+
+/* ---------- CARRITO ---------- */
+function renderCart(){
+  const el = document.getElementById('cartItems');
+  el.innerHTML = '';
+  if(CART.length === 0){
+    el.innerHTML = '<div class="muted">Carrito vacío</div>';
+    document.getElementById('cartTotal').innerText = money(0);
+    return;
+  }
+  let total = 0;
+  CART.forEach((it, idx)=>{
+    const sub = (it.cantidad * parseFloat(it.precio_unit || 0));
+    total += sub;
+    const row = document.createElement('div');
+    row.className = 'cart-item';
+    row.innerHTML = `
+      <div style="max-width:60%"><strong>${escapeHtml(it.nombre)}</strong><div class="muted small">x ${it.cantidad}</div></div>
+      <div style="text-align:right;">
+        <div>${money(sub)}</div>
+        <div style="margin-top:6px">
+          <button class="btn dec" data-idx="${idx}">-</button>
+          <button class="btn inc" data-idx="${idx}">+</button>
+          <button class="btn rm" data-idx="${idx}">Eliminar</button>
+        </div>
+      </div>`;
+    el.appendChild(row);
+  });
+  document.getElementById('cartTotal').innerText = money(total);
+}
+
+function addToCart(prod){
+  const exists = CART.find(x => x.producto_id == prod.id);
+  if(exists) exists.cantidad += 1;
+  else CART.push({ producto_id: prod.id, nombre: prod.nombre_comercial, cantidad: 1, precio_unit: prod.precio_publico });
+  renderCart();
+}
+
+function clearCart(){
+  if(!confirm('Limpiar carrito?')) return;
+  CART = [];
+  renderCart();
+}
+
+/* ---------- CAJA ---------- */
+function mostrarDetallesCaja(data){
+  const div = document.getElementById('detallesCaja');
+  if(!data){
+    div.innerHTML = '<div class="muted">Sin caja abierta actualmente.</div>';
+    return;
+  }
+  div.innerHTML = `
+    <p><strong>Fecha Apertura:</strong> ${data.fecha_apertura}</p>
+    <p><strong>Monto Inicial:</strong> ${money(data.monto_inicial)}</p>
+    <p><strong>Total Ventas:</strong> ${money(data.total_ventas||0)}</p>
+    <p><strong>Monto Final:</strong> ${data.monto_final ? money(data.monto_final) : 'Pendiente'}</p>
+  `;
+}
+
+/* trae la caja actual del servidor */
+async function loadCurrentCaja(){
+  try{
+    const res = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/current_caja.php');
+    if(!res.ok) return; // no cambiar estado si hay error
+    const d = await res.json();
+    if(d && d.caja){
+      CAJA_ABIERTA = d.caja;
+      mostrarDetallesCaja(CAJA_ABIERTA);
+    }else{
+      CAJA_ABIERTA = null;
+      mostrarDetallesCaja(null);
+    }
+  }catch(e){
+    console.warn('No se pudo obtener caja actual', e);
+  }
+}
+
+/* abrir caja */
+async function abrirCaja(monto){
+  try{
+    // Llamada actualizada a tu endpoint de apertura
+    const res = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/cash_open.php',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({monto_inicial: monto})
+    });
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || 'Error al abrir caja');
+    CAJA_ABIERTA = d.caja || null;
+    mostrarDetallesCaja(CAJA_ABIERTA);
+    return { ok:true, caja: CAJA_ABIERTA };
+  }catch(e){
+    console.error(e);
+    return { ok:false, error: e.message || 'Error' };
+  }
+}
+
+/* obtener resumen para cerrar caja */
+async function obtenerResumenCaja(){
+  try{
+    const res = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/resumen_caja.php');
+    if(!res.ok) throw new Error('Error al obtener resumen');
+    return await res.json();
+  }catch(e){
+    console.error(e);
+    return null;
+  }
+}
+
+/* cerrar caja */
+async function cerrarCaja(monto_final){
+  try{
+    // Llamada actualizada a tu endpoint de cierre
+    const res = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/cash_close.php',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({monto_final: monto_final})
+    });
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || 'Error al cerrar caja');
+    CAJA_ABIERTA = null;
+    mostrarDetallesCaja(null);
+
+    // si el backend devuelve un id de cierre, retornar para abrir el PDF
+    return { ok:true, cierre_id: d.cierre_id || null };
+  }catch(e){
+    console.error(e);
+    return { ok:false, error: e.message || 'Error' };
+  }
+}
+
+/* ---------- EVENTOS Y HANDLERS ---------- */
+function setupHandlers(){
+  // búsqueda
+  document.getElementById('buscar').onclick = ()=> loadProductos(document.getElementById('q').value.trim());
+  document.getElementById('q').oninput = e => loadProductos(e.target.value.trim());
+
+  // delegación para botones Agregar
+  document.getElementById('productosList').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-id]');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    (async ()=>{
+      try{
+        // Reusar fetchProductos y buscar el id
+        const prods = await fetchProductos();
+        const p = prods.find(x => x.id == id);
+        if(p) addToCart(p);
+      }catch(err){ console.error(err); alert('Error agregando producto'); }
+    })();
+  });
+
+  // carrito botones (inc/dec/remove)
+  document.getElementById('cartItems').addEventListener('click', (e)=>{
+    const idx = e.target.dataset.idx;
+    if(idx === undefined) return;
+    if(e.target.classList.contains('inc')){
+      CART[idx].cantidad = (CART[idx].cantidad || 0) + 1;
+      renderCart();
+    } else if(e.target.classList.contains('dec')){
+      CART[idx].cantidad = Math.max(1, (CART[idx].cantidad || 1) - 1);
+      renderCart();
+    } else if(e.target.classList.contains('rm')){
+      if(confirm('Eliminar ítem?')){ CART.splice(idx,1); renderCart(); }
+    }
+  });
+
+  // customer type show/hide document
+  document.getElementById('cartCustomerType').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    const dr = document.getElementById('docRow');
+    if(v === 'nit' || v === 'cui') dr.style.display = '';
+    else { dr.style.display = 'none'; document.getElementById('cartCustomerDocument').value = ''; }
+  });
+
+  // venta sin producto
+  document.getElementById('ventaSinProducto').addEventListener('change', (e)=>{
+    const checked = e.target.checked;
+    document.getElementById('cantidadCobroRow').style.display = checked ? '' : 'none';
+    if(!checked) document.getElementById('cantidadCobro').value = '';
+  });
+
+  // clear cart
+  document.getElementById('clearCart').onclick = clearCart;
+
+  // back to inventario
+  document.getElementById('backToInv').onclick = ()=> window.location = 'inventario.html';
+
+  // logout
+  document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+    try{ await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/logout.php'); }catch(e){/* ignore */} 
+    window.location = 'login.html';
+  });
+
+  /* ------ CHECKOUT ------ */
+  document.getElementById('checkoutBtn').addEventListener('click', async ()=>{
+  // validaciones previas
+  if(CART.length === 0 && !document.getElementById('ventaSinProducto').checked){
+    alert('Carrito vacío');
+    return;
+  }
+
+  const cliente_tipo = document.getElementById('cartCustomerType').value || 'consumidor_final';
+  const cliente_documento = document.getElementById('cartCustomerDocument')?.value || null;
+  const note = document.getElementById('cartNote').value || '';
+  const ventaSinProducto = document.getElementById('ventaSinProducto').checked;
+  const cantidadCobro = ventaSinProducto ? parseFloat(document.getElementById('cantidadCobro').value || 0) : null;
+
+  const calcTotalFromCart = CART.reduce((s,i)=> s + (i.cantidad * parseFloat(i.precio_unit||0)), 0);
+  const total = (ventaSinProducto && CART.length===0) ? (cantidadCobro||0) : calcTotalFromCart;
+
+  if(ventaSinProducto && (!cantidadCobro || isNaN(cantidadCobro) || cantidadCobro<=0)){
+    alert('Ingrese el monto cobrado para la venta sin producto');
+    return;
+  }
+  if(total <= 0){
+    alert('Total inválido');
+    return;
+  }
+
+  if(!confirm(`Total: Q${total.toFixed(2)}\nMétodo: Efectivo\nContinuar?`)) return;
+
+  const payload = {
+    items: CART.map(i=>({producto_id:i.producto_id, cantidad:i.cantidad, precio_unit:i.precio_unit})),
+    total: total,
+    branch_id: null,
+    cliente_tipo,
+    cliente_documento,
+    note,
+    venta_sin_producto: ventaSinProducto ? 1 : 0,
+    cantidad_cobro: cantidadCobro,
+    caja_id: CAJA_ABIERTA?.id || null
+  };
+
+  try{
+    const resp = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/register_sale.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const text = await resp.text(); // primero obtenemos como texto
+    let data;
+    try{
+      data = JSON.parse(text); // intentamos parsear JSON
+    }catch(e){
+      console.error('Respuesta no es JSON:', text);
+      alert('Error al procesar la venta. Respuesta inesperada del servidor.');
+      return;
+    }
+
+    if(!resp.ok || data.error){
+      alert(data.error || 'Error procesando la venta');
+      return;
+    }
+
+    const venta_id = data.venta_id || null;
+
+    // registrar pago efectivo
+    if(venta_id){
+      try{
+        const payResp = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/record_payment.php', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            sale_id: venta_id,
+            amount: total,
+            payment_type:'efectivo',
+            details:null,
+            is_credit:0,
+            branch_id:null,
+            caja_id: CAJA_ABIERTA?.id || null
+          })
+        });
+        // opcional: revisar si payResp.ok
+      }catch(pe){
+        console.warn('Pago no registrado:', pe);
+      }
+    }
+
+    CART = [];
+    renderCart();
+    await loadProductos();
+    showSuccess(venta_id, total);
+
+  }catch(err){
+    console.error('checkout error', err);
+    alert('Error en el servidor al cobrar');
+  }
+});
+
+
+  /* ------ MODALES CAJA ------ */
+
+  // abrir caja modal
+  document.getElementById('abrirCajaBtn').onclick = ()=> showModal('abrirCajaModal');
+  document.getElementById('cancelAbrirCaja').onclick = ()=> hideModal('abrirCajaModal');
+  document.getElementById('confirmAbrirCaja').onclick = async ()=>{
+    const monto = parseFloat(document.getElementById('montoInicial').value||0);
+    if(monto<=0) return alert('Ingrese un monto válido');
+    const res = await abrirCaja(monto);
+    if(res.ok){
+      hideModal('abrirCajaModal');
+      document.getElementById('montoInicial').value = '';
+      alert('Caja abierta correctamente.');
+    }else alert(res.error || 'Error al abrir caja');
+  };
+
+  // cerrar caja modal
+  document.getElementById('cerrarCajaBtn').onclick = async ()=>{
+    if(!CAJA_ABIERTA) return alert('No hay caja abierta');
+    const resumen = await obtenerResumenCaja();
+    const resumenDiv = document.getElementById('resumenCaja');
+    resumenDiv.innerHTML = `
+      <p><strong>Total Ventas:</strong> ${money(resumen?.total_ventas || 0)}</p>
+      <p><strong>Monto Inicial:</strong> ${money(resumen?.monto_inicial || 0)}</p>
+      <p><strong>Ventas Pendientes:</strong> ${money(resumen?.ventas_pendientes || 0)}</p>
+    `;
+    document.getElementById('montoFinal').value = (resumen?.efectivo_en_caja != null) ? resumen.efectivo_en_caja : '';
+    showModal('cerrarCajaModal');
+  };
+
+  document.getElementById('cancelCerrarCaja').onclick = ()=> hideModal('cerrarCajaModal');
+  document.getElementById('confirmCerrarCaja').onclick = async ()=>{
+    const montoFinal = parseFloat(document.getElementById('montoFinal').value||0);
+    if(isNaN(montoFinal)) return alert('Ingrese monto final válido');
+    const res = await cerrarCaja(montoFinal);
+    if(res.ok){
+      hideModal('cerrarCajaModal');
+      alert('Caja cerrada correctamente');
+      // si el backend devolvió cierre_id, abrir PDF del cierre
+      if(res.cierre_id){
+        window.open(`https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/cierre_pdf.php?cierre_id=${res.cierre_id}`, '_blank');
+      }
+      await loadCurrentCaja(); // refrescar estado
+    }else alert(res.error || 'Error al cerrar caja');
+  };
+
+  /* ------ MODAL ÉXITO Y PDF ------ */
+  document.getElementById('closeModal').onclick = ()=> hideModal('successModal');
+  document.getElementById('openPDF').onclick = ()=>{
+    const msg = document.getElementById('successMsg').innerText;
+    // extraer venta id si está en el mensaje (formato usado abajo)
+    const match = msg.match(/Venta ID: ([0-9\-]+)/);
+    const venta_id = match ? match[1] : null;
+    if(!venta_id) return alert('No se generó id de venta para crear PDF');
+    window.open(`https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/invoice_pdf_fpdf.php?venta_id=${venta_id}`,'_blank');
+  };
+}
+
+/* ---------- Helpers UI ---------- */
+function showSuccess(venta_id, total){
+  const modal = document.getElementById('successModal');
+  document.getElementById('successMsg').innerText = `Venta ID: ${venta_id || '--'} · Total: Q${(total||0).toFixed(2)}`;
+  modal.style.display = 'flex';
+}
+
+/* ---------- Init ---------- */
+async function init(){
+  await loadProductos();
+  renderCart();
+  setupHandlers();
+  await loadCurrentCaja();
+}
+
+/* arrancar auth check */
+authCheck();
+</script>
+</body>
+</html>
+

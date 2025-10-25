@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Login</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #2b5876, #4e4376);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 40px 30px;
+      width: 320px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+
+    .box h2 {
+      margin-bottom: 25px;
+      color: #333;
+    }
+
+    .box input {
+      display: block;
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    .box button {
+      width: 100%;
+      padding: 10px;
+      background: #4e4376;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+
+    .box button:hover {
+      background: #2b5876;
+    }
+
+    #msg {
+      margin-top: 10px;
+      font-size: 14px;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Iniciar sesión</h2>
+    <form id="loginForm">
+      <input name="username" id="username" placeholder="Usuario" required>
+      <input name="password" id="password" placeholder="Contraseña" type="password" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+  <script src="js/login.js"></script>
+</body>
+</html>

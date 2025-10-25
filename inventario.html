@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Inventario</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://hospitalhilariogalindo.org/wp-content/uploads/2024/11/6-1-300x225.jpg') no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      color: #333;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    header img { height: 60px; }
+    header h1 {
+      flex: 1;
+      text-align: center;
+      margin: 0;
+      font-size: 24px;
+      color: #2b5876;
+    }
+    header div button {
+      background: #2b5876;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      margin-left: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    header div button:hover { background: #4e4376; }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      backdrop-filter: blur(5px);
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      padding: 20px;
+      width: 90%;
+      max-width: 1000px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    input, button, select, textarea { font-size: 16px; }
+    input, select, textarea {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .product { display:flex; justify-content:space-between; gap:12px; padding:10px 6px; border-bottom:1px solid #eee; align-items:center; }
+    .product div:first-child { flex:1; }
+    .product small { color:#666; }
+    .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .controls input[type="search"] { width: 360px; }
+    .controls button { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; background:#2b5876; color:#fff; }
+    .text-muted { color:#666; font-size:13px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="https://hospitalhilariogalindo.org/wp-content/uploads/2024/12/logo_mc.png" alt="Logo">
+    <h1>POS-HHG</h1>
+    <div>
+      <button id="usersBtn" style="display:none;">Usuarios</button>
+      <button id="ventasBtn">Ventas</button>
+      <button id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <div class="controls card">
+      <input id="q" placeholder="Buscar productos..." type="search" />
+      <button id="buscar">Buscar</button>
+
+      <select id="branchSelect" style="width:180px;">
+        <option value="">Sucursal (cargando...)</option>
+      </select>
+
+      <div style="margin-left:auto; display:flex; gap:8px;">
+        <button id="nuevo">Nuevo producto</button>
+        <button id="registrarCompraBtn">Registrar Compra</button>
+        <button id="backup">Backup</button>
+      </div>
+    </div>
+
+    <div id="formSection" class="card" style="display:none;">
+      <h3 id="formTitle">Nuevo producto</h3>
+      <form id="prodForm">
+        <input name="nombre_comercial" placeholder="Nombre comercial" required>
+        <input name="presentacion" placeholder="Presentación">
+        <input name="principio_activo" placeholder="Principio activo">
+        <input name="casa" placeholder="Casa">
+        <input name="expira" type="date" placeholder="Fecha expiración">
+        <input name="stock" type="number" placeholder="Stock" value="0">
+        <input name="precio_costo" type="number" step="0.01" placeholder="Precio costo">
+        <input name="precio_publico" type="number" step="0.01" placeholder="Precio público">
+        <input type="hidden" name="id" value="">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="submit">Guardar</button>
+          <button type="button" id="cancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" id="lista"></div>
+
+  </div>
+
+<script>
+let USER_ROLE = '';
+
+function formatCurrency(v){ return 'Q'+parseFloat(v||0).toFixed(2); }
+
+async function apiGet(url){
+  const r = await fetch(url);
+  if(!r.ok) throw r;
+  return await r.json();
+}
+
+/* 🔹 Iniciar según rol */
+fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/auth_check.php')
+.then(r=>r.json())
+.then(data=>{
+  if(!data.ok) return location.href='login.html';
+  USER_ROLE = (data.user.rol||'').toLowerCase();
+
+  if(USER_ROLE!=='admin' && USER_ROLE!=='administrador'){
+    document.getElementById('nuevo').style.display='none';
+    document.getElementById('backup').style.display='none';
+    document.getElementById('registrarCompraBtn').style.display='none';
+  } else {
+    document.getElementById('usersBtn').style.display='';
+  }
+
+  init();
+});
+
+async function init(){
+  await loadBranches();
+  await loadProductos();
+  setupEvents();
+}
+
+/* 🔹 Sucursales */
+async function loadBranches(){
+  try{
+    const data = await apiGet('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/branches.php');
+    const sel = document.getElementById('branchSelect');
+    sel.innerHTML = '<option value="">Seleccionar sucursal</option>';
+    data.forEach(b=> sel.appendChild(new Option(b.name,b.id)));
+  }catch{
+    console.warn("Sin sucursales");
+  }
+}
+
+/* 🔹 Productos */
+async function fetchProductos(q=''){
+  const url = q ? 'https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php?q='+encodeURIComponent(q) : 'https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php';
+  const r = await fetch(url);
+  return await r.json();
+}
+async function loadProductos(q=''){
+  const list = document.getElementById('lista');
+  list.innerHTML='Cargando...';
+  try{
+    const data = await fetchProductos(q);
+    renderProductos(data);
+  }catch(e){ list.innerHTML='Error al cargar'; }
+}
+
+function renderProductos(items){
+  const lista=document.getElementById('lista');
+  lista.innerHTML='';
+  (items||[]).forEach(p=>{
+    const div=document.createElement('div');
+    div.className='product';
+    let adminBtns='';
+    if(USER_ROLE==='admin' || USER_ROLE==='administrador'){
+      adminBtns = `
+        <button class="edit" data-id="${p.id}">Editar</button>
+        <button class="del" data-id="${p.id}">Eliminar</button>`;
+    }
+    div.innerHTML = `
+      <div>
+        <strong>${p.nombre_comercial}</strong><br>
+        <small>${p.presentacion||''} - ${p.principio_activo||''}</small><br>
+        <small style="color:${p.stock<=0?'red':'green'}">
+        Stock: ${p.stock} | ${formatCurrency(p.precio_publico)}</small>
+      </div>
+      <div>${adminBtns}</div>`;
+    lista.appendChild(div);
+  });
+}
+
+/* 🔹 Eventos */
+function setupEvents(){
+  document.getElementById('buscar').onclick=()=>loadProductos(document.getElementById('q').value.trim());
+  document.getElementById('q').oninput=e=>loadProductos(e.target.value);
+
+  document.getElementById('ventasBtn').onclick=()=>location.href='ventas.html';
+  document.getElementById('logoutBtn').onclick=()=>{ fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/logout.php'); location.href='login.html'; };
+
+  document.getElementById('nuevo').onclick=()=>{
+    document.getElementById('formSection').style.display='';
+    document.getElementById('prodForm').reset();
+    document.getElementById('formTitle').innerText='Nuevo producto';
+  };
+  document.getElementById('cancel').onclick=()=>document.getElementById('formSection').style.display='none';
+
+  document.getElementById('prodForm').onsubmit=async e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const obj=Object.fromEntries(fd.entries());
+    const url=obj.id ? `https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php?id=${obj.id}` : 'https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php';
+    const method=obj.id?'PUT':'POST';
+    await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+    document.getElementById('formSection').style.display='none';
+    loadProductos();
+  };
+
+  document.getElementById('lista').onclick=async e=>{
+    const id=e.target.dataset.id;
+    if(!id) return;
+    const ps = await fetchProductos();
+    const p = ps.find(x=>x.id==id);
+
+    if(e.target.matches('.edit')){
+      const f=document.getElementById('prodForm');
+      f.nombre_comercial.value=p.nombre_comercial;
+      f.presentacion.value=p.presentacion;
+      f.principio_activo.value=p.principio_activo;
+      f.casa.value=p.casa;
+      f.expira.value=p.expira ? p.expira.split(' ')[0] : '';
+      f.stock.value=p.stock;
+      f.precio_costo.value=p.precio_costo;
+      f.precio_publico.value=p.precio_publico;
+      f.id.value=p.id;
+      document.getElementById('formSection').style.display='';
+      document.getElementById('formTitle').innerText='Editar producto';
+    }
+    if(e.target.matches('.del') && confirm('Eliminar?')){
+      await fetch(`https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/productos.php?id=${id}`,{method:'DELETE'});
+      loadProductos();
+    }
+  };
+}
+</script>
+
+</body>
+</html>
