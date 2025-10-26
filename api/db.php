@@ -1,8 +1,17 @@
 <?php
+header("Access-Control-Allow-Origin: https://pos-c7b3etcee5bnczbm.westus-01.azurewebsites.net");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
 $DB_HOST = '127.0.0.1';
 $DB_NAME = 'farmacia_pos';
 $DB_USER = 'root';
-$DB_PASS = ''; 
+$DB_PASS = '';
 
 $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
