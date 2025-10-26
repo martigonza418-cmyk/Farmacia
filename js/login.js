@@ -6,13 +6,11 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
   try {
     const res = await fetch('https://revelational-madelene-propositionally.ngrok-free.dev/farmacia_pos/api/login.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, password }),
-      // Esto ayuda a enviar credenciales si fueran necesarias
-      // credentials: 'include'
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+
     });
 
     const data = await res.json();
